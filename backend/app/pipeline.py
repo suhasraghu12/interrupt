@@ -30,6 +30,7 @@ from app.providers.tts import build_tts_service
 from app.providers.vad import build_vad_analyzer
 from app.telemetry.events import SessionTurnRecord
 from app.telemetry.session_recorder import SessionRecorder
+from app.telemetry.turn_publisher import TurnEventPublisher
 from app.turn_taking.base import TurnTakingStrategy
 from app.turn_taking.pipecat_adapter import StrategyUserTurnStopStrategy
 
@@ -121,5 +122,8 @@ def build_pipeline(settings: Settings, token: str) -> PipelineTask:
     return PipelineTask(
         pipeline,
         params=PipelineParams(enable_metrics=True),
-        observers=[build_latency_observer(settings, session_id)],
+        observers=[
+            build_latency_observer(settings, session_id),
+            TurnEventPublisher(transport, session_id, settings.turn_taking_mode),
+        ],
     )

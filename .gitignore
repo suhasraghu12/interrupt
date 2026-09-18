@@ -26,6 +26,10 @@ sessions/
 livekit-server.exe
 run.txt
 
+# Design tool export (mockups/screenshots) -- tokens are baked into
+# frontend/tailwind.config.js, not needed in the repo itself
+stitch_interrupt_voice_ai_agent/
+
 # OS / editor
 .DS_Store
 Thumbs.db

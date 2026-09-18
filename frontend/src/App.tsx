@@ -1,19 +1,25 @@
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AppShell } from "./components/AppShell";
+import { BenchmarkPanel } from "./components/BenchmarkPanel";
 import { CallView } from "./components/CallView";
+import { LatencyDashboard } from "./components/LatencyDashboard";
 import { TranscriptPanel } from "./components/TranscriptPanel";
+import { SessionProvider } from "./lib/session";
 
 export default function App() {
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Interrupt</h1>
-        <p>A voice agent that knows when you're actually done talking.</p>
-      </header>
-      <div className="card">
-        <CallView />
-      </div>
-      <div className="card transcript-card">
-        <TranscriptPanel />
-      </div>
-    </div>
+    <SessionProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<CallView />} />
+            <Route path="transcript" element={<TranscriptPanel />} />
+            <Route path="latency" element={<LatencyDashboard />} />
+            <Route path="benchmark" element={<BenchmarkPanel />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </SessionProvider>
   );
 }

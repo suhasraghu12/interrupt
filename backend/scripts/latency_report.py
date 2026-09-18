@@ -17,6 +17,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from app.telemetry.aggregate import load_records, percentile
 from app.telemetry.events import SessionTurnRecord
 
 # Categorical order + validated hex values from the dataviz skill's reference palette
@@ -38,25 +39,6 @@ INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
 GRIDLINE = "#e1e0d9"
 SURFACE = "#fcfcfb"
-
-
-def load_records(patterns: list[str]) -> list[SessionTurnRecord]:
-    paths = [p for pattern in patterns for p in glob.glob(pattern)]
-    records = []
-    for path in paths:
-        for line in Path(path).read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                records.append(SessionTurnRecord.model_validate_json(line))
-    return records
-
-
-def percentile(values: list[float], p: float) -> float | None:
-    if not values:
-        return None
-    values = sorted(values)
-    k = (len(values) - 1) * p
-    f, c = int(k), min(int(k) + 1, len(values) - 1)
-    return values[f] + (values[c] - values[f]) * (k - f)
 
 
 def print_summary(records: list[SessionTurnRecord]) -> None:
@@ -132,7 +114,7 @@ def main() -> None:
     parser.add_argument("--out", default="docs/latency_breakdown.png", type=Path)
     args = parser.parse_args()
 
-    records = load_records(args.patterns)
+    records = load_records([Path(p) for pattern in args.patterns for p in glob.glob(pattern)])
     if not records:
         print(
             "No records found -- have a few real conversations first (see docs/local-dev-setup.md)."

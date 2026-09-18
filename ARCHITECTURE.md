@@ -12,7 +12,7 @@ A cascade-pipeline voice agent whose distinguishing contribution is an explicit,
 | STT | faster-whisper (default) / Deepgram, AssemblyAI (swappable) | Local-first, zero cost during dev |
 | LLM | local/cheap-fast model (default) / Groq, Cerebras (swappable) | TTFT dominates perceived latency |
 | TTS | Piper / Kokoro (default) / Cartesia, ElevenLabs (swappable) | Local-first, zero cost during dev |
-| Frontend | React + Vite + livekit-client | Mic capture, playback, live transcript, latency dashboard |
+| Frontend | React + Vite + Tailwind + livekit-client | Mic capture, playback, live transcript, latency dashboard |
 | Backend | Python (FastAPI + Pipecat) | |
 | Tracing | OpenTelemetry → Langfuse | Per-turn latency breakdown |
 
@@ -41,16 +41,26 @@ interrupt/
 │       ├── telemetry/
 │       │   ├── events.py        # SessionTurnRecord (wraps Pipecat's LatencyBreakdown)
 │       │   ├── tracer.py        # OpenTelemetry → Langfuse (later)
-│       │   └── session_recorder.py  # JSONL: one LatencyBreakdown per turn
-│       └── server.py            # FastAPI: token issuance, health, config
+│       │   ├── session_recorder.py  # JSONL: one LatencyBreakdown per turn
+│       │   ├── aggregate.py     # stage grouping + percentiles, shared by API and report
+│       │   └── turn_publisher.py    # live turn events → LiveKit room data messages
+│       └── server.py            # FastAPI: token, health, config, recorded telemetry
 ├── frontend/
+│   ├── tailwind.config.js        # design tokens (Stitch-generated; source design not tracked)
 │   └── src/
-│       ├── App.tsx
+│       ├── App.tsx               # routes: one per research view
 │       ├── components/
-│       │   ├── CallView.tsx
-│       │   ├── TranscriptPanel.tsx
-│       │   └── LatencyDashboard.tsx
-│       └── lib/livekit-client.ts
+│       │   ├── AppShell.tsx      # instrument header + left rail, shared by all views
+│       │   ├── ui.tsx            # panel/metric/label primitives
+│       │   ├── CallView.tsx      # live stage, dual-channel scope, engine config
+│       │   ├── TranscriptPanel.tsx    # turn stream + per-turn inspector
+│       │   ├── LatencyDashboard.tsx   # waterfall + distribution
+│       │   └── BenchmarkPanel.tsx     # three-arm comparison
+│       └── lib/
+│           ├── livekit-client.ts
+│           ├── session.tsx       # room state, mic/agent RMS, /config, live turn events
+│           ├── api.ts            # typed reads of the recorded-telemetry endpoints
+│           └── arms.ts           # what each A/B arm is (descriptions, not results)
 ├── eval/
 │   ├── scenarios/                # recorded audio + labels (F9)
 │   ├── harness.py                # replay scenarios against turn_taking module directly
@@ -60,6 +70,15 @@ interrupt/
 ```
 
 `turn_taking/` and `providers/` are deliberately separate: turn-taking logic never knows which STT/TTS vendor is active, only that it receives VAD events and a transcript stream and emits turn decisions. That separation is what makes both the baseline A/B flag (F7) and provider swapping (F11) a config change rather than a code change.
+
+The frontend is four views over one session, and every number in it comes from the backend. Two different paths get it there, because they answer different questions:
+
+- **Live, during a call** — the agent publishes turn events (speech boundaries, partial and final transcripts, interruptions) straight into the LiveKit room as data messages (`telemetry/turn_publisher.py`). The browser is already joined to that room, so this needs no IPC between the agent worker and the API server and no polling. The transcript view is empty until a call runs; it never falls back to fixtures.
+- **After the fact, from disk** — `GET /sessions`, `/sessions/{id}/turns` and `/latency/summary` read the recorded JSONL through `telemetry/aggregate.py`. The waterfall and benchmark views read these.
+
+`aggregate.py` owns the mapping from Pipecat's contribution keys to the four pipeline stages the chart shows, so `scripts/latency_report.py` and the API can never disagree about what counts as "ASR". It also holds `first_request` out of per-turn totals: that contribution runs from `client_connected` to the first request, so on turn 1 it carries the entire cold start — tens of seconds locally. Folding it into turn latency would inflate every published number, which is exactly the failure this document's measurement section warns about, so it is reported separately as setup and pinned by a test.
+
+What the frontend cannot show, it names instead of faking. The benchmark view's accuracy columns (false interruption, missed turn, backchannel false-stop) stay empty until `eval/harness.py` replays a labelled scenario set; an A/B arm with no recorded sessions reads "not run" rather than zero, so a missing arm is never mistaken for a bad one.
 
 ## Core interface
 
