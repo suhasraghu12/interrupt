@@ -1,33 +1,21 @@
-"""STT provider interface (F3: streaming partial transcripts) plus implementations.
-Default is faster-whisper (local, zero API cost); Deepgram/AssemblyAI are the paid
-swap-ins selected via config.stt_provider. Nothing outside this module should import
-a vendor SDK directly.
+"""STT provider selection (F3). Local default is faster-whisper via Pipecat's
+WhisperSTTService; Deepgram/AssemblyAI are the streaming swap-ins.
+
+Note: faster-whisper transcribes per utterance after VAD reports speech-end -- it does
+not emit true incremental partials. The baseline strategy doesn't need them, but
+semantic end-of-utterance work does, which is why the streaming providers exist here.
 """
 
-from typing import AsyncIterator, Protocol
+from pipecat.services.stt_service import STTService
+from pipecat.services.whisper.stt import WhisperSTTService
+
+from app.config import Settings, SttProvider
 
 
-class SttStream(Protocol):
-    async def transcribe_stream(self, audio_chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
-        """Yields partial transcript text as audio arrives."""
-        ...
+def build_stt_service(settings: Settings) -> STTService:
+    if settings.stt_provider == SttProvider.FASTER_WHISPER:
+        return WhisperSTTService(model=settings.whisper_model)
 
-
-class FasterWhisperStt:
-    def __init__(self, model_size: str = "small.en"):
-        # TODO(week 1): load faster-whisper model.
-        raise NotImplementedError
-
-    async def transcribe_stream(self, audio_chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
-        raise NotImplementedError
-        yield  # pragma: no cover
-
-
-class DeepgramStt:
-    def __init__(self, api_key: str):
-        # TODO: comparison-provider, add when F11 is scoped.
-        raise NotImplementedError
-
-    async def transcribe_stream(self, audio_chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
-        raise NotImplementedError
-        yield  # pragma: no cover
+    raise NotImplementedError(
+        f"{settings.stt_provider} is not wired yet -- see F11 (pluggable providers)."
+    )

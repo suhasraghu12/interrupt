@@ -5,6 +5,7 @@ from a session recording (see session_recorder.py).
 """
 
 from enum import Enum
+
 from pydantic import BaseModel
 
 

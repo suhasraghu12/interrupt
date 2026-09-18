@@ -70,6 +70,7 @@ class TurnEvent(Enum):
     PARTIAL_TRANSCRIPT = auto()    # carries (text, is_final)
     AGENT_SPEAKING_START = auto()
     AGENT_SPEAKING_END = auto()
+    TICK = auto()                  # periodic time check
 
 class TurnDecision(Enum):
     WAIT = auto()
@@ -84,21 +85,63 @@ class TurnTakingStrategy(Protocol):
 - **`SemanticStrategy`** — combines VAD silence with a semantic end-of-utterance signal (classifier or prompted fast LLM against the partial transcript) before allowing `RESPOND`. Which EOU approach ships is a week-3 decision (latency vs. accuracy prototype per the PRD's open questions); the interface is unaffected either way.
 - **Backchannel detection (F8)** is a filter in front of `BARGE_IN_STOP`, not folded into VAD or STT, so it can be tested and tuned in isolation — and so it can consult either VAD-timing heuristics or transcript word-matching (or both) without touching the rest of the pipeline.
 
+`on_event` is deliberately pure — no timers, no I/O, decisions driven by explicit `TICK` events carrying a timestamp. That's what lets `eval/harness.py` replay recorded scenarios through the *same* code that runs live, instead of evaluating a reimplementation. Everything impure (the tick timer, async triggers, frame translation) lives in `turn_taking/pipecat_adapter.py`, which implements Pipecat's `BaseUserTurnStopStrategy` and delegates to our strategy.
+
+### The three-way A/B
+
+Pipecat 1.11 ships its own turn-taking strategies, including `LocalSmartTurnAnalyzerV3`, a bundled semantic end-of-utterance model. Rather than pretend otherwise, `TURN_TAKING_MODE` selects between three arms:
+
+| Mode | What it is | Role |
+|---|---|---|
+| `baseline` | our `BaselineStrategy` — fixed VAD-silence threshold | the naive approach to beat |
+| `smart_turn` | Pipecat's `LocalSmartTurnAnalyzerV3` | the framework default to beat |
+| `semantic` | our `SemanticStrategy` — VAD silence + semantic EOU | the contribution |
+
+"Better than naive" is a weak claim when the framework ships something better than naive. "Better than the framework's own turn detector, measured on a published eval set" is the claim worth making — and if ours loses, that's a publishable result too.
+
 Provider interfaces (`providers/*.py`) are small protocols (`transcribe_stream`, `generate_stream`, `synthesize_stream`); local and paid implementations are interchangeable purely via `config.py`.
+
+### Known constraint: partial transcripts
+
+`faster-whisper` transcribes per utterance, after VAD reports speech-end — it does not emit true incremental partials the way Deepgram/AssemblyAI streaming ASR does. The baseline strategy doesn't care (it only needs the final transcript at VAD-silence), but F3 (partials as the user speaks) and F4 (semantic EOU against partials) do. Resolving that means either rolling re-transcription over a sliding window locally, or swapping `STT_PROVIDER` to a streaming provider for the semantic path — which is the swap the provider interface exists to make cheap.
 
 ## Data flow
 
 ```
 Browser mic → LiveKit room → Pipecat pipeline:
-  AudioFrame → VAD processor ─┬─→ TurnTakingStrategy ←── STT partials
-                               │         │
-                               │         ├─ WAIT / RESPOND / BARGE_IN_STOP
-                               │         ▼
-                        LLM (streaming) → TTS (streaming) → LiveKit → Browser playback
+
+  transport.input() → STT → user aggregator → LLM → TTS → transport.output()
+                                   │
+                          Silero VAD + turn stop strategy
+                                   │
+                    StrategyUserTurnStopStrategy (adapter)
+                                   │
+                   TurnTakingStrategy.on_event → WAIT / RESPOND / BARGE_IN_STOP
 ```
+
+The VAD analyzer and the turn stop strategy are configured on the user aggregator
+(`LLMUserAggregatorParams`), which is where Pipecat 1.11 runs the user-turn lifecycle. A
+`RESPOND` decision becomes `trigger_user_turn_stopped()`, which is what releases the
+turn to the LLM.
 
 Every stage timestamps events through `telemetry/events.py`. `session_recorder.py` persists raw audio plus the full event trace per session to disk, so timing-dependent bugs can be replayed offline instead of chased live. The eval harness (`eval/harness.py`) drives `TurnTakingStrategy` directly against recorded scenarios — no LiveKit, no audio I/O, no API cost — for fast iteration on turn-taking accuracy.
 
+### Measurement is part of the system under test
+
+An early TTFT measurement of the local LLM read 2.2s. The real figure was 73–258ms — the
+2s was `urllib`'s buffered line iteration delaying the first yield, not the model. The
+check that caught it was comparing client-side timing against the server's own
+`prompt_eval_duration` for the same request; they now agree within ~4ms.
+
+Since this project's entire claim rests on latency numbers, every instrumented stage
+should be cross-checked against an independent clock before its number goes in the
+README. A measurement harness that lies is worse than no harness — it produces
+confident, wrong conclusions.
+
+Cold start is a separate trap: the first Ollama load is ~17s on CPU. `providers/llm.py`
+preloads and pins the model at agent startup so that cost never lands inside a measured
+turn.
+
 ## Config
 
-A single `TURN_TAKING_STRATEGY=baseline|semantic` setting selects F7's A/B flag; `STT_PROVIDER` / `LLM_PROVIDER` / `TTS_PROVIDER` select implementations. Defaults are the local/self-hosted providers so the pipeline runs at zero API cost out of the box. `pipeline.py` is the only place that reads config and wires concrete instances — no provider- or strategy-specific branching anywhere else.
+A single `TURN_TAKING_MODE=baseline|smart_turn|semantic` setting selects the A/B arm (F7); `STT_PROVIDER` / `LLM_PROVIDER` / `TTS_PROVIDER` select implementations. Defaults are the local/self-hosted providers so the pipeline runs at zero API cost out of the box. `pipeline.py` is the only place that reads config and wires concrete instances — no provider- or strategy-specific branching anywhere else.

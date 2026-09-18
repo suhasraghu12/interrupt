@@ -1,11 +1,12 @@
 """FastAPI app: LiveKit room-token issuance for the frontend, health check, and a
-read-only endpoint exposing the active config (useful for the frontend to display
-which turn-taking mode / providers are active during a demo).
+read-only endpoint exposing the active config (so a demo can show which turn-taking
+mode / providers are running).
 """
 
 from fastapi import FastAPI
+from livekit import api
 
-from app.config import settings
+from app.config import Settings, settings
 
 app = FastAPI(title="Interrupt")
 
@@ -25,7 +26,15 @@ def get_config() -> dict:
     }
 
 
+def mint_token(settings: Settings, room: str, identity: str) -> str:
+    return (
+        api.AccessToken(settings.livekit_api_key, settings.livekit_api_secret)
+        .with_identity(identity)
+        .with_grants(api.VideoGrants(room_join=True, room=room))
+        .to_jwt()
+    )
+
+
 @app.post("/token")
 def issue_token(room: str, identity: str) -> dict:
-    # TODO(week 1): mint a LiveKit access token via livekit-api.
-    raise NotImplementedError
+    return {"token": mint_token(settings, room, identity), "url": settings.livekit_url}

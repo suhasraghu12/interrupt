@@ -4,13 +4,11 @@ version = "0.1.0"
 description = "Full-duplex-feeling voice agent with an explicit, measurable turn-taking module."
 requires-python = ">=3.11"
 dependencies = [
-    "pipecat-ai>=0.0.40",
-    "livekit>=0.17",
+    "pipecat-ai[whisper,ollama,piper,livekit]>=0.0.40",
     "livekit-api>=0.7",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic-settings>=2.4",
-    "faster-whisper>=1.0",
     "opentelemetry-sdk>=1.27",
     "opentelemetry-exporter-otlp>=1.27",
 ]
@@ -26,9 +24,18 @@ providers-cloud = [
     "cartesia>=1.0",
 ]
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+include = ["app*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+pythonpath = ["backend"]

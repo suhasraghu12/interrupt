@@ -1,44 +1,21 @@
-"""TTS provider interface plus implementations. Default is Piper/Kokoro (local, zero
-API cost); Cartesia/ElevenLabs are the low-latency paid swap-ins selected via
-config.tts_provider. Must support mid-stream cancellation -- barge-in (F5) requires
-stopping playback within 200ms, which means the synthesis stream itself has to be
-interruptible, not just the audio player on the client.
+"""TTS provider selection. Local default is Piper (in-process, GPL-3.0 -- see
+docs/local-dev-setup.md); Cartesia/ElevenLabs are the low-latency swap-ins.
+
+Barge-in (F5) needs synthesis to be cancellable mid-stream, not just the client-side
+player to stop. Pipecat's TTSService handles cancellation on interruption; Week 4 work
+is about *deciding* when to cancel, not about the mechanism.
 """
 
-from typing import AsyncIterator, Protocol
+from pipecat.services.piper.tts import PiperTTSService
+from pipecat.services.tts_service import TTSService
+
+from app.config import Settings, TtsProvider
 
 
-class TtsStream(Protocol):
-    async def synthesize_stream(self, text_chunks: AsyncIterator[str]) -> AsyncIterator[bytes]:
-        """Yields audio bytes incrementally as text arrives."""
-        ...
+def build_tts_service(settings: Settings) -> TTSService:
+    if settings.tts_provider == TtsProvider.PIPER:
+        return PiperTTSService(voice_id=settings.piper_voice)
 
-    async def stop(self) -> None:
-        """Cancel in-flight synthesis immediately. Called on BARGE_IN_STOP."""
-        ...
-
-
-class PiperTts:
-    def __init__(self, voice: str):
-        # TODO(week 1): wire Piper (or Kokoro) local TTS.
-        raise NotImplementedError
-
-    async def synthesize_stream(self, text_chunks: AsyncIterator[str]) -> AsyncIterator[bytes]:
-        raise NotImplementedError
-        yield  # pragma: no cover
-
-    async def stop(self) -> None:
-        raise NotImplementedError
-
-
-class CartesiaTts:
-    def __init__(self, api_key: str, voice: str):
-        # TODO: comparison-provider, add when F11 is scoped.
-        raise NotImplementedError
-
-    async def synthesize_stream(self, text_chunks: AsyncIterator[str]) -> AsyncIterator[bytes]:
-        raise NotImplementedError
-        yield  # pragma: no cover
-
-    async def stop(self) -> None:
-        raise NotImplementedError
+    raise NotImplementedError(
+        f"{settings.tts_provider} is not wired yet -- see F11 (pluggable providers)."
+    )

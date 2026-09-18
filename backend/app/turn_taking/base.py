@@ -10,10 +10,12 @@ from typing import Protocol
 
 class TurnEvent(Enum):
     USER_SPEECH_START = auto()
-    USER_SPEECH_END = auto()  # VAD-reported silence
+    USER_SPEECH_END = auto()  # VAD-reported silence, payload: TickPayload
     PARTIAL_TRANSCRIPT = auto()  # payload: TranscriptPayload
     AGENT_SPEAKING_START = auto()
     AGENT_SPEAKING_END = auto()
+    TICK = auto()  # payload: TickPayload -- periodic time check, keeps silence-timeout
+    # logic pure/replayable instead of each strategy owning a real timer/thread
 
 
 class TurnDecision(Enum):
@@ -26,6 +28,11 @@ class TurnDecision(Enum):
 class TranscriptPayload:
     text: str
     is_final: bool
+    timestamp_ms: float
+
+
+@dataclass
+class TickPayload:
     timestamp_ms: float
 
 
