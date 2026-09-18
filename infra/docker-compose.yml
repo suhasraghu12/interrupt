@@ -1,0 +1,12 @@
+# Self-hosted LiveKit for local development, to avoid hosted per-minute cost during
+# iteration (PRD risk: hosting a live WebRTC demo is expensive).
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --dev
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    environment:
+      LIVEKIT_KEYS: "devkey: devsecret"

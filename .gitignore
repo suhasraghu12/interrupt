@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Recorded sessions / eval audio (large, not for git)
+eval/scenarios/*.wav
+sessions/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
