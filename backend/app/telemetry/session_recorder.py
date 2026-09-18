@@ -1,22 +1,32 @@
-"""Persists raw session audio plus the full TurnStageEvent trace to disk per session.
-Risk mitigation from the PRD: real-time turn-taking bugs are timing-dependent and hard
-to reproduce live, so every session must be replayable offline against the eval
-harness or a debugger without needing to re-trigger the bug in real time.
+"""Persists per-turn latency breakdowns to disk as JSONL, one file per session, so
+`scripts/latency_report.py` can compute p50/p95 numbers and a breakdown chart after
+the fact without needing a live pipeline.
+
+Raw-audio session recording (the other half of PRD Sec.11's replay-offline risk
+mitigation) is not implemented here -- that needs LiveKit track recording/egress and
+isn't required for the Week 2 latency-chart milestone. Documented gap, not a silent
+drop.
 """
 
 from pathlib import Path
 
+from app.config import TurnTakingMode
+from app.telemetry.events import SessionTurnRecord
+
+DEFAULT_SESSIONS_DIR = Path(__file__).parent.parent.parent.parent / "sessions"
+
 
 class SessionRecorder:
-    def __init__(self, session_id: str, out_dir: Path):
-        # TODO(week 1): open audio file handle + event log for this session.
-        raise NotImplementedError
+    def __init__(
+        self,
+        session_id: str,
+        turn_taking_mode: TurnTakingMode,
+        out_dir: Path = DEFAULT_SESSIONS_DIR,
+    ):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        self.path = out_dir / f"{session_id}_{turn_taking_mode}.jsonl"
 
-    def record_audio_chunk(self, chunk: bytes) -> None:
-        raise NotImplementedError
-
-    def record_event(self, event: "TurnStageEvent") -> None:  # noqa: F821
-        raise NotImplementedError
-
-    def close(self) -> None:
-        raise NotImplementedError
+    def record(self, record: SessionTurnRecord) -> None:
+        with open(self.path, "a", encoding="utf-8") as f:
+            f.write(record.model_dump_json())
+            f.write("\n")

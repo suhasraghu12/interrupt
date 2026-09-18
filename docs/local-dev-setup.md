@@ -54,6 +54,24 @@ npm run dev
 
 Open the printed URL, click Connect, and allow microphone access.
 
+## 5. Collecting latency numbers
+
+Every completed turn gets appended to `sessions/<session_id>_<mode>.jsonl` while the
+agent runs (the path is printed at startup — look for "Latency log:" in the agent
+worker's terminal). Have several short, clean-completion conversations (the "Book me a
+flight to Delhi" kind, not mid-sentence pauses — those are eval-set scenarios for
+later, not what a latency baseline should mix in), then:
+
+```
+python backend/scripts/latency_report.py sessions/*.jsonl
+```
+
+This prints p50/p95 for end-of-turn→first-audio and for turn-taking overhead alone,
+and writes a per-turn breakdown chart to `docs/latency_breakdown.png`. Re-run after
+switching `TURN_TAKING_MODE` (baseline / smart_turn / semantic) to build the three-way
+comparison in the README's results table — each mode's sessions land in separate
+files, so nothing needs clearing between runs.
+
 ## Notes
 
 - Piper TTS runs in-process via the GPL-3.0 `piper-tts` package. It's pulled in through

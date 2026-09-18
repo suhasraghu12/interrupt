@@ -3,12 +3,12 @@ thresholds. `pipeline.py` is the only module that should read this and wire conc
 instances -- no provider- or strategy-specific branching belongs anywhere else.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic_settings import BaseSettings
 
 
-class TurnTakingMode(str, Enum):
+class TurnTakingMode(StrEnum):
     """The three arms of the A/B (F7).
 
     BASELINE and SEMANTIC are our own strategies, implemented as pure event->decision
@@ -23,19 +23,19 @@ class TurnTakingMode(str, Enum):
     SEMANTIC = "semantic"
 
 
-class SttProvider(str, Enum):
+class SttProvider(StrEnum):
     FASTER_WHISPER = "faster_whisper"
     DEEPGRAM = "deepgram"
     ASSEMBLYAI = "assemblyai"
 
 
-class LlmProvider(str, Enum):
+class LlmProvider(StrEnum):
     LOCAL = "local"
     GROQ = "groq"
     CEREBRAS = "cerebras"
 
 
-class TtsProvider(str, Enum):
+class TtsProvider(StrEnum):
     PIPER = "piper"
     KOKORO = "kokoro"
     CARTESIA = "cartesia"

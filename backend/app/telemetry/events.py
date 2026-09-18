@@ -1,28 +1,21 @@
-"""Turn event schema (F6). Every pipeline stage timestamps into this so a per-turn
-latency breakdown (VAD -> STT final -> turn decision -> LLM TTFT -> TTS first byte ->
-audio out) can be reconstructed after the fact, live in a dashboard (F10), or replayed
-from a session recording (see session_recorder.py).
+"""Persistence record for F6 (per-turn latency breakdown).
+
+Pipecat's own UserBotLatencyObserver (pipecat.observers.user_bot_latency_observer)
+already produces the per-turn breakdown this needs: per-service TTFB, named
+contributions that sum to the total (including parts no service measures, like VAD
+silence wait), and `user_turn_secs` -- the time the turn-taking strategy itself adds,
+isolated from STT/LLM/TTS. Reimplementing that would just be a worse copy of it.
+
+The only thing our code adds on top is which session and which A/B arm a breakdown
+belongs to, so later multi-mode comparisons can group by turn_taking_mode.
 """
 
-from enum import Enum
-
+from pipecat.observers.user_bot_latency_observer import LatencyBreakdown
 from pydantic import BaseModel
 
 
-class Stage(str, Enum):
-    VAD_SPEECH_END = "vad_speech_end"
-    STT_FINAL_TRANSCRIPT = "stt_final_transcript"
-    TURN_DECISION = "turn_decision"
-    LLM_FIRST_TOKEN = "llm_first_token"
-    TTS_FIRST_BYTE = "tts_first_byte"
-    AUDIO_OUT_START = "audio_out_start"
-    BARGE_IN_DETECTED = "barge_in_detected"
-    BARGE_IN_STOPPED = "barge_in_stopped"
-
-
-class TurnStageEvent(BaseModel):
+class SessionTurnRecord(BaseModel):
     session_id: str
-    turn_id: str
-    stage: Stage
-    t_ms: float  # monotonic ms since session start
-    meta: dict = {}
+    turn_taking_mode: str
+    recorded_at: float  # unix timestamp
+    breakdown: LatencyBreakdown

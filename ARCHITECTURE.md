@@ -39,9 +39,9 @@ interrupt/
 │       │   ├── llm.py
 │       │   └── tts.py
 │       ├── telemetry/
-│       │   ├── events.py        # turn event schema
-│       │   ├── tracer.py        # OpenTelemetry → Langfuse
-│       │   └── session_recorder.py  # raw audio + event trace dump per session
+│       │   ├── events.py        # SessionTurnRecord (wraps Pipecat's LatencyBreakdown)
+│       │   ├── tracer.py        # OpenTelemetry → Langfuse (later)
+│       │   └── session_recorder.py  # JSONL: one LatencyBreakdown per turn
 │       └── server.py            # FastAPI: token issuance, health, config
 ├── frontend/
 │   └── src/
@@ -124,7 +124,11 @@ The VAD analyzer and the turn stop strategy are configured on the user aggregato
 `RESPOND` decision becomes `trigger_user_turn_stopped()`, which is what releases the
 turn to the LLM.
 
-Every stage timestamps events through `telemetry/events.py`. `session_recorder.py` persists raw audio plus the full event trace per session to disk, so timing-dependent bugs can be replayed offline instead of chased live. The eval harness (`eval/harness.py`) drives `TurnTakingStrategy` directly against recorded scenarios — no LiveKit, no audio I/O, no API cost — for fast iteration on turn-taking accuracy.
+Per-turn latency (F6) is Pipecat's `UserBotLatencyObserver`, not a hand-rolled event schema — it already produces per-service TTFB, named contributions that sum to the total (including parts no service measures, like VAD silence wait), and `user_turn_secs`, which isolates exactly the cost the active turn-taking strategy adds. `telemetry/events.py`'s `SessionTurnRecord` only tags a breakdown with which session and which A/B arm it belongs to; `session_recorder.py` appends one per turn to `sessions/<session_id>_<mode>.jsonl`. `backend/scripts/latency_report.py` turns those logs into the p50/p95 numbers and the breakdown chart for the README.
+
+Raw-audio session recording (for offline replay of timing-dependent bugs, PRD §11) is not implemented — that needs LiveKit track recording/egress and is a documented gap, not silently dropped.
+
+The eval harness (`eval/harness.py`) drives `TurnTakingStrategy` directly against recorded scenarios — no LiveKit, no audio I/O, no API cost — for fast iteration on turn-taking accuracy.
 
 ### Measurement is part of the system under test
 

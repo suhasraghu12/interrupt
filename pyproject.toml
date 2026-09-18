@@ -17,6 +17,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "matplotlib>=3.8",
 ]
 providers-cloud = [
     "deepgram-sdk>=3.0",
