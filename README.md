@@ -6,11 +6,17 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the system design and module breakdow
 
 ## Status
 
-Architecture scaffolded. Pipeline implementation in progress — see milestones below.
+Weeks 1–2 done: a working baseline agent (fixed-silence-threshold turn-taking) runs
+end-to-end on a local-only stack, and every turn is instrumented with per-service
+latency (`backend/app/telemetry/`) via Pipecat's own latency observer. `semantic.py`
+and `backchannel.py` are scaffolded with the target interface but not yet implemented
+— that's the week 3–4 work. The eval harness (`eval/harness.py`) is stubbed pending
+week 5's scenario dataset.
 
 ## Results
 
-_Filled in after Week 2 (baseline numbers) and Week 3 (custom turn-taking numbers). See the PRD success metrics table for the target format._
+_Filled in after Week 2 (baseline numbers, in progress) and Week 3 (custom
+turn-taking numbers). See the PRD success metrics table for the target format._
 
 Three arms: the naive fixed-threshold baseline, Pipecat's built-in
 `LocalSmartTurnAnalyzerV3`, and our strategy. The framework default is in the table on
@@ -35,14 +41,14 @@ running.
 
 ## Milestones
 
-| Week | Deliverable |
-|---|---|
-| 1 | Working baseline agent (fixed-threshold turn-taking) |
-| 2 | Full instrumentation + baseline latency numbers |
-| 3 | Custom turn decision (VAD + semantic EOU) |
-| 4 | Barge-in + backchannel detection |
-| 5 | Eval harness, demo video, writeup, published eval dataset |
+| Week | Deliverable | Status |
+|---|---|---|
+| 1 | Working baseline agent (fixed-threshold turn-taking) | Done |
+| 2 | Full instrumentation + baseline latency numbers | Instrumentation done, numbers pending |
+| 3 | Custom turn decision (VAD + semantic EOU) | Not started |
+| 4 | Barge-in + backchannel detection | Not started |
+| 5 | Eval harness, demo video, writeup, published eval dataset | Not started |
 
 ## License
 
-TBD
+Apache 2.0 — see [LICENSE](LICENSE).
